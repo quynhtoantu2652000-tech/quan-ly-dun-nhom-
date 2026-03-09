@@ -1,0 +1,1523 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Xưởng Ép Đùn Nhôm – Hệ Thống Báo Cáo</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@300;400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pptxgenjs/3.12.0/pptxgen.bundled.js"></script>
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getDatabase, ref, set, get, onValue } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+// ── FIREBASE CONFIG – thay bằng config của bạn ──────────────────────────────
+const firebaseConfig = {
+  apiKey: "AIzaSyAvh84tj3ctin6zAmflyaez6B_8ktktSD8",
+  authDomain: "xuong-ep-dun-nhom.firebaseapp.com",
+  databaseURL: "https://xuong-ep-dun-nhom-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "xuong-ep-dun-nhom",
+  storageBucket: "xuong-ep-dun-nhom.firebasestorage.app",
+  messagingSenderId: "109052287329",
+  appId: "1:109052287329:web:ea427ed656d77a17eb8d20"
+};
+
+let db = null;
+let fbConnected = false;
+
+try {
+  const app = initializeApp(firebaseConfig);
+  db = getDatabase(app);
+
+  // test connection
+  const connRef = ref(db, ".info/connected");
+  onValue(connRef, (snap) => {
+    fbConnected = snap.val() === true;
+    document.getElementById("fb-status").textContent = fbConnected ? (window.LANG==="vi"?"✅ Đã kết nối Firebase":"✅ 已连接 Firebase") : "⚠️ Offline";
+    document.getElementById("fb-status").style.color = fbConnected ? "#10b981" : "#f59e0b";
+  });
+} catch(e) {
+  document.getElementById("fb-status").textContent = "💾 Chạy offline (localStorage)";
+  document.getElementById("fb-status").style.color = "#f59e0b";
+}
+
+// ── DATA HELPERS ─────────────────────────────────────────────────────────────
+window.fbSave = async function(path, data) {
+  try {
+    if (db && fbConnected) {
+      await set(ref(db, path), data);
+    }
+  } catch(e) {}
+  localStorage.setItem("xed_" + path.replace(/\//g,"_"), JSON.stringify(data));
+};
+
+window.fbLoad = async function(path) {
+  try {
+    if (db && fbConnected) {
+      const snap = await get(ref(db, path));
+      if (snap.exists()) return snap.val();
+    }
+  } catch(e) {}
+  const local = localStorage.getItem("xed_" + path.replace(/\//g,"_"));
+  return local ? JSON.parse(local) : null;
+};
+
+window.fbLoadAll = async function(basePath) {
+  try {
+    if (db && fbConnected) {
+      const snap = await get(ref(db, basePath));
+      if (snap.exists()) return snap.val();
+    }
+  } catch(e) {}
+  // Reconstruct from localStorage
+  const result = {};
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    const prefix = "xed_" + basePath.replace(/\//g,"_") + "_";
+    if (key.startsWith(prefix)) {
+      const subKey = key.slice(prefix.length);
+      try { result[subKey] = JSON.parse(localStorage.getItem(key)); } catch(e){}
+    }
+  }
+  return Object.keys(result).length ? result : null;
+};
+
+window.firebaseReady = true;
+window.dispatchEvent(new Event("firebaseReady"));
+</script>
+
+<style>
+/* ═══════════════════════════════════════════════════════
+   DESIGN: Dark Industrial – precision + data clarity
+   Colors: Deep navy bg, amber accent, cyan accent2
+═══════════════════════════════════════════════════════ */
+:root {
+  --bg:        #080d1a;
+  --surface:   #0e1628;
+  --surface2:  #141f35;
+  --surface3:  #1a2842;
+  --border:    rgba(255,255,255,0.07);
+  --border2:   rgba(255,255,255,0.12);
+  --amber:     #f59e0b;
+  --cyan:      #06b6d4;
+  --green:     #10b981;
+  --red:       #ef4444;
+  --purple:    #8b5cf6;
+  --blue:      #3b82f6;
+  --text:      #e2e8f0;
+  --text2:     #94a3b8;
+  --text3:     #475569;
+  --r:         8px;
+  --r2:        12px;
+  --font:      'Be Vietnam Pro', sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{font-size:14px;scroll-behavior:smooth}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--surface3);border-radius:4px}
+input,select,button{font-family:var(--font)}
+
+/* ── TOPBAR ── */
+#topbar {
+  display:flex;align-items:center;gap:12px;
+  padding:0 20px;height:56px;
+  background:var(--surface);
+  border-bottom:1px solid var(--border2);
+  position:sticky;top:0;z-index:100;
+  backdrop-filter:blur(12px);
+}
+.logo-wrap{display:flex;align-items:center;gap:10px;flex-shrink:0}
+.logo-box{
+  width:36px;height:36px;border-radius:8px;
+  background:linear-gradient(135deg,var(--amber),#d97706);
+  display:flex;align-items:center;justify-content:center;
+  font-size:18px;font-weight:900;color:#0a0d1a;
+  box-shadow:0 0 16px rgba(245,158,11,0.4);
+}
+.logo-text h1{font-size:14px;font-weight:800;color:var(--text);line-height:1.2}
+.logo-text p{font-size:10px;color:var(--text2);line-height:1}
+#fb-status{font-size:11px;font-weight:600;margin-left:4px}
+.topbar-right{margin-left:auto;display:flex;align-items:center;gap:8px}
+
+/* ── LANG BTNS ── */
+.lang-btn{
+  padding:5px 12px;border-radius:6px;border:1px solid var(--border2);
+  background:transparent;color:var(--text2);cursor:pointer;font-size:11px;font-weight:700;
+  transition:all .2s;letter-spacing:.5px;
+}
+.lang-btn.active{background:var(--cyan);border-color:var(--cyan);color:#000}
+.lang-btn:hover:not(.active){border-color:var(--cyan);color:var(--cyan)}
+
+/* ── YEAR SELECT ── */
+.year-select{
+  background:var(--surface2);border:1px solid var(--border2);
+  color:var(--text);padding:5px 10px;border-radius:6px;
+  font-size:12px;font-weight:700;cursor:pointer;outline:none;
+}
+
+/* ── EXPORT BTN ── */
+.export-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:7px 16px;border-radius:7px;border:none;
+  background:linear-gradient(135deg,#8b5cf6,#6d28d9);
+  color:#fff;cursor:pointer;font-size:12px;font-weight:700;
+  box-shadow:0 0 16px rgba(139,92,246,0.35);
+  transition:all .2s;
+}
+.export-btn:hover{transform:translateY(-1px);box-shadow:0 4px 20px rgba(139,92,246,0.5)}
+.export-btn:disabled{opacity:.6;cursor:wait}
+
+/* ── TABS ── */
+#tabs{
+  display:flex;gap:0;
+  background:var(--surface);
+  border-bottom:1px solid var(--border);
+  padding:0 20px;overflow-x:auto;
+}
+.tab-btn{
+  display:flex;align-items:center;gap:6px;
+  padding:14px 20px;border:none;background:transparent;
+  color:var(--text3);cursor:pointer;font-size:12px;font-weight:700;
+  border-bottom:2px solid transparent;transition:all .2s;white-space:nowrap;
+  letter-spacing:.3px;
+}
+.tab-btn:hover{color:var(--text2)}
+.tab-btn.active{color:var(--amber);border-bottom-color:var(--amber)}
+.tab-icon{font-size:14px}
+
+/* ── MAIN ── */
+#main{padding:20px;min-height:calc(100vh - 120px)}
+
+/* ── FILTER BAR ── */
+.filter-bar{
+  display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:12px 16px;margin-bottom:18px;
+}
+.filter-label{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px}
+.filter-select{
+  background:var(--surface2);border:1px solid var(--border2);
+  color:var(--text);padding:6px 12px;border-radius:6px;
+  font-size:12px;font-weight:600;cursor:pointer;outline:none;
+}
+
+/* ── STAT CARDS ── */
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin-bottom:18px}
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:18px 20px;position:relative;overflow:hidden;
+  transition:transform .2s,border-color .2s;
+}
+.stat-card:hover{transform:translateY(-2px);border-color:var(--border2)}
+.stat-card::before{
+  content:'';position:absolute;top:0;left:0;right:0;height:2px;
+  background:var(--card-color,var(--cyan));
+}
+.stat-label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.8px;margin-bottom:8px}
+.stat-val{font-size:30px;font-weight:800;color:var(--text);line-height:1;margin-bottom:4px}
+.stat-sub{font-size:11px;color:var(--text2)}
+
+/* ── GRID ── */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:14px}
+
+/* ── CHART CARDS ── */
+.chart-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:18px 20px;
+}
+.chart-card.wide{grid-column:span 2}
+.card-title{font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px;display:flex;align-items:center;gap:6px}
+.card-title-dot{width:6px;height:6px;border-radius:50%;background:var(--dot-color,var(--amber));flex-shrink:0}
+.chart-wrap{position:relative}
+.no-data{text-align:center;padding:40px 20px;color:var(--text3);font-size:13px}
+.no-data-icon{font-size:32px;margin-bottom:8px}
+
+/* ── INPUT CARD ── */
+.input-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r2);padding:20px;margin-bottom:14px;
+}
+.input-card-title{font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:.8px;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.form-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.form-grid-2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.form-field{display:flex;flex-direction:column;gap:4px}
+.form-field label{font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.6px}
+.form-field input,
+.form-field select{
+  background:var(--surface2);border:1px solid var(--border2);
+  color:var(--text);padding:8px 10px;border-radius:6px;
+  font-size:13px;font-weight:500;outline:none;transition:border-color .2s;width:100%;
+}
+.form-field input:focus,
+.form-field select:focus{border-color:var(--cyan)}
+.calc-row{
+  display:flex;gap:12px;margin-top:10px;
+  background:rgba(6,182,212,.07);border:1px solid rgba(6,182,212,.15);
+  border-radius:6px;padding:10px 14px;
+}
+.calc-item{display:flex;flex-direction:column;gap:2px}
+.calc-item span:first-child{font-size:10px;color:var(--text3);text-transform:uppercase;font-weight:700}
+.calc-item span:last-child{font-size:15px;font-weight:800;color:var(--cyan)}
+.save-btn{
+  margin-top:12px;padding:9px 22px;border-radius:7px;border:none;
+  background:linear-gradient(135deg,var(--cyan),#0284c7);
+  color:#fff;cursor:pointer;font-size:12px;font-weight:700;
+  transition:all .2s;display:flex;align-items:center;gap:6px;
+}
+.save-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(6,182,212,.4)}
+.save-btn.success{background:linear-gradient(135deg,var(--green),#059669)}
+.add-btn{
+  margin-top:12px;padding:9px 22px;border-radius:7px;border:none;
+  background:linear-gradient(135deg,var(--purple),#6d28d9);
+  color:#fff;cursor:pointer;font-size:12px;font-weight:700;transition:all .2s;
+}
+.add-btn:hover{transform:translateY(-1px);box-shadow:0 4px 16px rgba(139,92,246,.4)}
+
+/* ── TABLE ── */
+.table-wrap{overflow-x:auto;border-radius:8px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead tr{background:var(--surface2)}
+th{padding:9px 12px;text-align:left;color:var(--text3);font-weight:700;font-size:10px;text-transform:uppercase;letter-spacing:.6px;white-space:nowrap}
+td{padding:9px 12px;border-bottom:1px solid var(--border);color:var(--text);white-space:nowrap}
+tr:hover td{background:rgba(255,255,255,.02)}
+.badge{display:inline-flex;align-items:center;padding:2px 9px;border-radius:20px;font-size:10px;font-weight:800;letter-spacing:.5px}
+.badge-ok{background:rgba(16,185,129,.15);color:#10b981;border:1px solid rgba(16,185,129,.3)}
+.badge-ng{background:rgba(239,68,68,.15);color:#ef4444;border:1px solid rgba(239,68,68,.3)}
+.badge-mach{background:rgba(59,130,246,.1);color:#60a5fa;border:1px solid rgba(59,130,246,.2);font-family:monospace}
+.del-btn{background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.2);color:#ef4444;padding:3px 9px;border-radius:5px;cursor:pointer;font-size:10px;font-weight:700;transition:all .15s}
+.del-btn:hover{background:rgba(239,68,68,.25)}
+
+/* ── COST ── */
+.cost-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px}
+
+/* ── SECTION DIVIDER ── */
+.section-sep{height:1px;background:var(--border);margin:16px 0}
+
+/* ── PROGRESS BAR ── */
+.progress-wrap{display:flex;align-items:center;gap:8px}
+.progress-bar{flex:1;height:6px;background:var(--surface3);border-radius:3px;overflow:hidden}
+.progress-fill{height:100%;border-radius:3px;transition:width .6s ease}
+
+/* ── SUMMARY ROW ── */
+.summary-pills{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+.pill{padding:5px 14px;border-radius:20px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:5px}
+.pill-green{background:rgba(16,185,129,.12);color:#10b981;border:1px solid rgba(16,185,129,.25)}
+.pill-red{background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25)}
+.pill-amber{background:rgba(245,158,11,.12);color:#f59e0b;border:1px solid rgba(245,158,11,.25)}
+.pill-cyan{background:rgba(6,182,212,.12);color:#06b6d4;border:1px solid rgba(6,182,212,.25)}
+
+/* ── RESPONSIVE ── */
+@media(max-width:900px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  .grid-2,.grid-3{grid-template-columns:1fr}
+  .chart-card.wide{grid-column:span 1}
+  .cost-grid{grid-template-columns:1fr 1fr}
+  .form-grid{grid-template-columns:1fr 1fr}
+}
+@media(max-width:600px){
+  .stats-row{grid-template-columns:1fr 1fr}
+  #topbar{padding:0 12px}
+  #main{padding:12px}
+  .form-grid{grid-template-columns:1fr}
+}
+
+/* ── FADE IN ── */
+.fade-in{animation:fadeIn .35s ease both}
+@keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+/* ── SECTION HIDDEN ── */
+.tab-section{display:none}
+.tab-section.active{display:block}
+
+/* ── TOAST ── */
+#toast{
+  position:fixed;bottom:24px;right:24px;z-index:9999;
+  background:var(--green);color:#fff;padding:10px 20px;
+  border-radius:8px;font-size:13px;font-weight:700;
+  opacity:0;transform:translateY(10px);transition:all .3s;pointer-events:none;
+}
+#toast.show{opacity:1;transform:none}
+</style>
+</head>
+<body>
+
+<!-- TOPBAR -->
+<div id="topbar">
+  <div class="logo-wrap">
+    <div class="logo-box">⚙</div>
+    <div class="logo-text">
+      <h1 id="app-title">XƯỞNG ÉP ĐÙN NHÔM</h1>
+      <p id="app-sub">Hệ thống báo cáo sản xuất</p>
+    </div>
+  </div>
+  <span id="fb-status" style="font-size:11px;color:#f59e0b;margin-left:8px">⏳ Đang kết nối...</span>
+  <div class="topbar-right">
+    <button class="lang-btn active" id="btn-vi" onclick="setLang('vi')">VN Tiếng Việt</button>
+    <button class="lang-btn" id="btn-zh" onclick="setLang('zh')">中 中文</button>
+    <select class="year-select" id="global-year" onchange="onYearChange()">
+      <option>2025</option><option>2026</option><option>2027</option>
+      <option>2028</option><option>2029</option><option>2030</option>
+    </select>
+    <button class="export-btn" id="ppt-btn" onclick="exportPPT()">
+      <span>📊</span><span id="ppt-label">Xuất PPT</span>
+    </button>
+  </div>
+</div>
+
+<!-- TABS -->
+<div id="tabs">
+  <button class="tab-btn active" onclick="switchTab(0)" id="tab0">
+    <span class="tab-icon">📈</span><span data-vi="Tổng Quan" data-zh="总览">Tổng Quan</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab(1)" id="tab1">
+    <span class="tab-icon">🏭</span><span data-vi="Dữ Liệu Sản Xuất" data-zh="生产数据">Dữ Liệu Sản Xuất</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab(2)" id="tab2">
+    <span class="tab-icon">🔩</span><span data-vi="Quản Lý Khuôn" data-zh="模具管理">Quản Lý Khuôn</span>
+  </button>
+  <button class="tab-btn" onclick="switchTab(3)" id="tab3">
+    <span class="tab-icon">💰</span><span data-vi="Chi Phí SX" data-zh="生产成本">Chi Phí SX</span>
+  </button>
+</div>
+
+<!-- MAIN -->
+<div id="main">
+
+<!-- ═══ TAB 0: TỔNG QUAN ═══ -->
+<div class="tab-section active fade-in" id="sec0">
+  <!-- Filter -->
+  <div class="filter-bar">
+    <span class="filter-label" data-vi="Bộ lọc:" data-zh="筛选：">Bộ lọc:</span>
+    <select class="filter-select" id="ov-month" onchange="renderOverview()">
+      <option value="0" data-vi="Tất cả tháng" data-zh="所有月份">Tất cả tháng</option>
+    </select>
+    <select class="filter-select" id="ov-machine" onchange="renderOverview()">
+      <option value="all" data-vi="Tất cả máy" data-zh="所有机器">Tất cả máy</option>
+    </select>
+  </div>
+
+  <!-- Stat cards -->
+  <div class="stats-row" id="ov-stats">
+    <div class="stat-card" style="--card-color:var(--cyan)">
+      <div class="stat-label" data-vi="Sản lượng đầu ra" data-zh="总产出量">Sản lượng đầu ra</div>
+      <div class="stat-val" id="ov-total-out">0</div>
+      <div class="stat-sub" id="ov-sub1">kg / 2025</div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--amber)">
+      <div class="stat-label" data-vi="Tỷ lệ thành phẩm TB" data-zh="平均成品率">Tỷ lệ thành phẩm TB</div>
+      <div class="stat-val" id="ov-yield">0%</div>
+      <div class="stat-sub" id="ov-sub2" data-vi="trung bình năm" data-zh="年均">trung bình năm</div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--green)">
+      <div class="stat-label" data-vi="Tổng khuôn OK" data-zh="合格模具数">Tổng khuôn OK</div>
+      <div class="stat-val" id="ov-mold-ok">0</div>
+      <div class="stat-sub" id="ov-sub3">/ <span id="ov-mold-total">0</span> <span data-vi="khuôn" data-zh="模具">khuôn</span></div>
+    </div>
+    <div class="stat-card" style="--card-color:var(--red)">
+      <div class="stat-label" data-vi="Tỷ lệ khuôn NG" data-zh="不合格模具率">Tỷ lệ khuôn NG</div>
+      <div class="stat-val" id="ov-ng-rate">0%</div>
+      <div class="stat-sub" data-vi="tổng số khuôn không đạt" data-zh="不合格总计">tổng số khuôn không đạt</div>
+    </div>
+  </div>
+
+  <!-- Charts row 1 -->
+  <div style="display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-bottom:14px">
+    <div class="chart-card">
+      <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--cyan)"></div><span data-vi="Sản Lượng Đầu Ra Theo Tháng (kg)" data-zh="各月产量(kg)">Sản Lượng Đầu Ra Theo Tháng (kg)</span></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="chart-ov-monthly"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--amber)"></div><span data-vi="Tỷ Lệ Thành Phẩm (%)" data-zh="成品率(%)">Tỷ Lệ Thành Phẩm (%)</span></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="chart-ov-yield"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Charts row 2 -->
+  <div class="grid-2">
+    <div class="chart-card">
+      <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--blue)"></div><span data-vi="Sản Lượng Theo Máy Ép (kg)" data-zh="各机器产量(kg)">Sản Lượng Theo Máy Ép (kg)</span></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="chart-ov-machine"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--green)"></div><span data-vi="Tình Hình Khuôn OK / NG" data-zh="模具合格/不合格">Tình Hình Khuôn OK / NG</span></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="chart-ov-mold"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 1: DỮ LIỆU SẢN XUẤT ═══ -->
+<div class="tab-section fade-in" id="sec1">
+  <!-- Input form -->
+  <div class="input-card">
+    <div class="input-card-title">📥 <span data-vi="Nhập dữ liệu sản xuất" data-zh="录入生产数据">Nhập dữ liệu sản xuất</span></div>
+    <div class="form-grid">
+      <div class="form-field">
+        <label data-vi="Năm" data-zh="年份">Năm</label>
+        <select id="p-year" onchange="loadProdFormData()">
+          <option>2025</option><option>2026</option><option>2027</option>
+          <option>2028</option><option>2029</option><option>2030</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label data-vi="Tháng" data-zh="月份">Tháng</label>
+        <select id="p-month" onchange="loadProdFormData()"></select>
+      </div>
+      <div class="form-field">
+        <label data-vi="Máy ép" data-zh="挤压机">Máy ép</label>
+        <select id="p-machine" onchange="loadProdFormData()"></select>
+      </div>
+      <div class="form-field">
+        <label data-vi="TL Nhôm đầu vào (kg)" data-zh="铝材投入量(kg)">TL Nhôm đầu vào (kg)</label>
+        <input type="number" id="p-input" placeholder="0" oninput="calcProd()" min="0"/>
+      </div>
+      <div class="form-field">
+        <label data-vi="TL Nhôm đầu ra (kg)" data-zh="铝材产出量(kg)">TL Nhôm đầu ra (kg)</label>
+        <input type="number" id="p-output" placeholder="0" oninput="calcProd()" min="0"/>
+      </div>
+      <div class="form-field">
+        <label data-vi="Tổng nhân viên" data-zh="员工总数">Tổng nhân viên</label>
+        <input type="number" id="p-emp" placeholder="0" oninput="calcProd()" min="0"/>
+      </div>
+    </div>
+    <div class="calc-row" id="prod-calc" style="display:none">
+      <div class="calc-item">
+        <span data-vi="Tỷ lệ thành phẩm" data-zh="成品率">Tỷ lệ thành phẩm</span>
+        <span id="calc-yield">—</span>
+      </div>
+      <div class="calc-item">
+        <span data-vi="SL TB / người" data-zh="人均产量">SL TB / người</span>
+        <span id="calc-avg">—</span>
+      </div>
+    </div>
+    <button class="save-btn" id="prod-save-btn" onclick="saveProd()">
+      💾 <span data-vi="Lưu dữ liệu" data-zh="保存数据">Lưu dữ liệu</span>
+    </button>
+  </div>
+
+  <!-- Filter -->
+  <div class="filter-bar">
+    <span class="filter-label" data-vi="Xem báo cáo:" data-zh="查看报告：">Xem báo cáo:</span>
+    <select class="filter-select" id="pr-month" onchange="renderProduction()"></select>
+    <select class="filter-select" id="pr-machine" onchange="renderProduction()"></select>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid-2" style="margin-bottom:14px">
+    <div class="chart-card">
+      <div class="card-title"><div class="card-title-dot"></div><span data-vi="Đầu vào vs Đầu ra (kg)" data-zh="投入vs产出(kg)">Đầu vào vs Đầu ra (kg)</span></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="chart-pr-inout"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--amber)"></div><span data-vi="Tỷ lệ thành phẩm theo máy (%)" data-zh="各机器成品率(%)">Tỷ lệ thành phẩm theo máy (%)</span></div>
+      <div class="chart-wrap" style="height:220px"><canvas id="chart-pr-yield"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Table -->
+  <div class="chart-card">
+    <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--purple)"></div><span data-vi="Bảng dữ liệu sản xuất" data-zh="生产数据表">Bảng dữ liệu sản xuất</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-vi="Tháng" data-zh="月份">Tháng</th>
+            <th data-vi="Máy ép" data-zh="挤压机">Máy ép</th>
+            <th data-vi="Đầu vào (kg)" data-zh="投入(kg)">Đầu vào (kg)</th>
+            <th data-vi="Đầu ra (kg)" data-zh="产出(kg)">Đầu ra (kg)</th>
+            <th data-vi="NV" data-zh="员工">NV</th>
+            <th data-vi="Tỷ lệ TP" data-zh="成品率">Tỷ lệ TP</th>
+            <th data-vi="TB/người" data-zh="人均">TB/người</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody id="prod-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 2: QUẢN LÝ KHUÔN ═══ -->
+<div class="tab-section fade-in" id="sec2">
+  <div class="grid-2">
+    <!-- Input -->
+    <div class="input-card" style="margin-bottom:0">
+      <div class="input-card-title">🔩 <span data-vi="Nhập khuôn lên máy" data-zh="录入模具上机数据">Nhập khuôn lên máy</span></div>
+      <div class="form-grid-2">
+        <div class="form-field">
+          <label data-vi="Năm" data-zh="年份">Năm</label>
+          <select id="m-year">
+            <option>2025</option><option>2026</option><option>2027</option>
+            <option>2028</option><option>2029</option><option>2030</option>
+          </select>
+        </div>
+        <div class="form-field">
+          <label data-vi="Tháng" data-zh="月份">Tháng</label>
+          <select id="m-month"></select>
+        </div>
+        <div class="form-field">
+          <label data-vi="Máy ép" data-zh="挤压机">Máy ép</label>
+          <select id="m-machine"></select>
+        </div>
+        <div class="form-field">
+          <label data-vi="Mã khuôn" data-zh="模具编号">Mã khuôn</label>
+          <input type="text" id="m-code" placeholder="VD: KH-001"/>
+        </div>
+        <div class="form-field" style="grid-column:span 2">
+          <label data-vi="Số cục nhôm đùn được (≥30 = OK)" data-zh="挤出铝块数(≥30=合格)">Số cục nhôm đùn được (≥30 = OK)</label>
+          <input type="number" id="m-pcs" placeholder="0" min="0"/>
+        </div>
+      </div>
+      <button class="add-btn" onclick="addMold()">+ <span data-vi="Thêm khuôn" data-zh="添加模具">Thêm khuôn</span></button>
+
+      <div class="section-sep"></div>
+      <div class="card-title" style="margin-bottom:10px"><div class="card-title-dot" style="--dot-color:var(--green)"></div><span data-vi="Khuôn vừa nhập" data-zh="已录入模具">Khuôn vừa nhập</span></div>
+      <div class="table-wrap" id="mold-quick-wrap">
+        <table>
+          <thead><tr>
+            <th data-vi="Mã khuôn" data-zh="模具编号">Mã khuôn</th>
+            <th data-vi="Số cục" data-zh="数量">Số cục</th>
+            <th data-vi="Trạng thái" data-zh="状态">Trạng thái</th>
+            <th></th>
+          </tr></thead>
+          <tbody id="mold-quick-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Summary + chart -->
+    <div>
+      <div class="stats-row" style="grid-template-columns:1fr 1fr;margin-bottom:14px">
+        <div class="stat-card" style="--card-color:var(--blue)">
+          <div class="stat-label" data-vi="Tổng khuôn" data-zh="模具总数">Tổng khuôn</div>
+          <div class="stat-val" id="m-total">0</div>
+        </div>
+        <div class="stat-card" style="--card-color:var(--green)">
+          <div class="stat-label" data-vi="Khuôn OK" data-zh="合格模具">Khuôn OK</div>
+          <div class="stat-val" id="m-ok">0</div>
+        </div>
+        <div class="stat-card" style="--card-color:var(--red)">
+          <div class="stat-label" data-vi="Khuôn NG" data-zh="不合格模具">Khuôn NG</div>
+          <div class="stat-val" id="m-ng">0</div>
+        </div>
+        <div class="stat-card" style="--card-color:var(--amber)">
+          <div class="stat-label" data-vi="Tỷ lệ NG" data-zh="不合格率">Tỷ lệ NG</div>
+          <div class="stat-val" id="m-ngrate">0%</div>
+        </div>
+      </div>
+      <div class="chart-card">
+        <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--green)"></div><span data-vi="OK vs NG theo tháng" data-zh="各月合格/不合格">OK vs NG theo tháng</span></div>
+        <div class="chart-wrap" style="height:200px"><canvas id="chart-mold-bar"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Filter + full table -->
+  <div class="filter-bar" style="margin-top:14px">
+    <select class="filter-select" id="mf-month" onchange="renderMolds()"></select>
+    <select class="filter-select" id="mf-machine" onchange="renderMolds()"></select>
+  </div>
+  <div class="chart-card">
+    <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--purple)"></div><span data-vi="Tất cả dữ liệu khuôn" data-zh="所有模具数据">Tất cả dữ liệu khuôn</span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr>
+          <th data-vi="Tháng" data-zh="月份">Tháng</th>
+          <th data-vi="Máy" data-zh="机器">Máy</th>
+          <th data-vi="Mã khuôn" data-zh="模具编号">Mã khuôn</th>
+          <th data-vi="Số cục" data-zh="数量">Số cục</th>
+          <th data-vi="Trạng thái" data-zh="状态">Trạng thái</th>
+          <th></th>
+        </tr></thead>
+        <tbody id="mold-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TAB 3: CHI PHÍ ═══ -->
+<div class="tab-section fade-in" id="sec3">
+  <!-- Input -->
+  <div class="input-card">
+    <div class="input-card-title">💰 <span data-vi="Nhập chi phí sản xuất" data-zh="录入生产成本">Nhập chi phí sản xuất</span></div>
+    <div class="form-grid-2" style="margin-bottom:10px">
+      <div class="form-field">
+        <label data-vi="Năm" data-zh="年份">Năm</label>
+        <select id="c-year" onchange="loadCostFormData()">
+          <option>2025</option><option>2026</option><option>2027</option>
+          <option>2028</option><option>2029</option><option>2030</option>
+        </select>
+      </div>
+      <div class="form-field">
+        <label data-vi="Tháng" data-zh="月份">Tháng</label>
+        <select id="c-month" onchange="loadCostFormData()"></select>
+      </div>
+    </div>
+    <div class="cost-grid" id="cost-inputs"></div>
+    <div class="calc-row" style="margin-top:0">
+      <div class="calc-item">
+        <span data-vi="Tổng tháng này" data-zh="本月合计">Tổng tháng này</span>
+        <span id="cost-month-total" style="color:var(--amber)">0 VNĐ</span>
+      </div>
+      <div class="calc-item">
+        <span data-vi="Tổng năm" data-zh="年度合计">Tổng năm</span>
+        <span id="cost-year-total" style="color:var(--cyan)">0 VNĐ</span>
+      </div>
+    </div>
+    <button class="save-btn" id="cost-save-btn" onclick="saveCost()">
+      💾 <span data-vi="Lưu chi phí" data-zh="保存成本">Lưu chi phí</span>
+    </button>
+  </div>
+
+  <!-- Charts -->
+  <div class="grid-2">
+    <div class="chart-card">
+      <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--amber)"></div><span data-vi="Chi Phí Theo Tháng (VNĐ)" data-zh="各月成本(VND)">Chi Phí Theo Tháng (VNĐ)</span></div>
+      <div class="chart-wrap" style="height:240px"><canvas id="chart-cost-monthly"></canvas></div>
+    </div>
+    <div class="chart-card">
+      <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--purple)"></div><span data-vi="Cơ Cấu Chi Phí Năm" data-zh="年度成本构成">Cơ Cấu Chi Phí Năm</span></div>
+      <div class="chart-wrap" style="height:240px"><canvas id="chart-cost-pie"></canvas></div>
+    </div>
+  </div>
+
+  <!-- Cost table -->
+  <div class="chart-card" style="margin-top:14px">
+    <div class="card-title"><div class="card-title-dot" style="--dot-color:var(--amber)"></div><span data-vi="Bảng chi phí năm" data-zh="年度成本表">Bảng chi phí năm</span> <span id="cost-table-year"></span></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr id="cost-thead"></tr></thead>
+        <tbody id="cost-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<!-- TOAST -->
+<div id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════════════════════════════
+//   CONSTANTS & STATE
+// ═══════════════════════════════════════════════════════════════════════════════
+const MACHINES = Array.from({length:10},(_,i)=>`M${String(i+1).padStart(2,'0')}`);
+const YEARS = [2025,2026,2027,2028,2029,2030];
+const COST_KEYS = ['gasCNG','electricity','labor','maintenance','mold','materials','other'];
+const COST_COLORS = ['#f59e0b','#06b6d4','#10b981','#8b5cf6','#3b82f6','#ef4444','#64748b'];
+const CHART_COLORS = ['#3b82f6','#06b6d4','#10b981','#f59e0b','#ef4444','#8b5cf6','#f97316','#14b8a6','#ec4899','#84cc16'];
+
+const T = {
+  vi: {
+    months:['Tháng 1','Tháng 2','Tháng 3','Tháng 4','Tháng 5','Tháng 6','Tháng 7','Tháng 8','Tháng 9','Tháng 10','Tháng 11','Tháng 12'],
+    allMonths:'Tất cả tháng', allMachines:'Tất cả máy',
+    saved:'✅ Đã lưu!', deleted:'🗑 Đã xóa',
+    noData:'Chưa có dữ liệu',
+    costLabels:{gasCNG:'Khí gas CNG',electricity:'Điện',labor:'Nhân công',maintenance:'Bảo trì máy',mold:'Khuôn',materials:'Vật tư SX',other:'Chi phí khác'},
+    moldOK:'OK', moldNG:'NG',
+    pptTitle:'Báo cáo Xưởng Ép Đùn Nhôm',
+  },
+  zh: {
+    months:['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'],
+    allMonths:'所有月份', allMachines:'所有机器',
+    saved:'✅ 已保存！', deleted:'🗑 已删除',
+    noData:'暂无数据',
+    costLabels:{gasCNG:'CNG燃气',electricity:'电费',labor:'人工费',maintenance:'设备维护',mold:'模具费',materials:'生产材料',other:'其他费用'},
+    moldOK:'合格', moldNG:'不合格',
+    pptTitle:'铝材挤压车间报告',
+  }
+};
+
+let lang = 'vi';
+let globalYear = 2025;
+let currentTab = 0;
+
+// Data stores
+let prodData = {};   // key: "YYYY-MM-MXX" → {inputWeight, outputWeight, totalEmployees}
+let moldData = {};   // key: "YYYY-MM-MXX" → [{moldCode, extrudedPcs}]
+let costData = {};   // key: "YYYY-MM" → {gasCNG, electricity, ...}
+
+// Charts registry
+const charts = {};
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   INIT
+// ═══════════════════════════════════════════════════════════════════════════════
+window.addEventListener('load', async () => {
+  buildSelects();
+  buildCostInputs();
+  await loadAllData();
+  renderAll();
+});
+
+window.addEventListener('firebaseReady', async () => {
+  await loadAllData();
+  renderAll();
+});
+
+function buildSelects() {
+  const t = T[lang];
+  // Month selects
+  ['ov-month','pr-month','mf-month'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = `<option value="0">${t.allMonths}</option>` +
+      t.months.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  });
+  ['p-month','m-month','c-month'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = t.months.map((m,i)=>`<option value="${i+1}">${m}</option>`).join('');
+  });
+  // Machine selects
+  ['ov-machine','pr-machine','mf-machine'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = `<option value="all">${t.allMachines}</option>` +
+      MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
+  });
+  ['p-machine','m-machine'].forEach(id => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.innerHTML = MACHINES.map(m=>`<option value="${m}">${m}</option>`).join('');
+  });
+}
+
+function buildCostInputs() {
+  const t = T[lang];
+  const container = document.getElementById('cost-inputs');
+  container.innerHTML = COST_KEYS.map((k,i) => `
+    <div class="form-field">
+      <label style="color:${COST_COLORS[i]}">${t.costLabels[k]}</label>
+      <input type="number" id="c-${k}" placeholder="0" min="0" oninput="calcCostTotal()"/>
+    </div>
+  `).join('');
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   DATA PERSISTENCE (localStorage fallback, Firebase primary)
+// ═══════════════════════════════════════════════════════════════════════════════
+async function loadAllData() {
+  // Load from localStorage first (fast)
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i);
+    if (!key.startsWith('xed_')) continue;
+    const path = key.slice(4).replace(/_/g, '/');
+    try {
+      const val = JSON.parse(localStorage.getItem(key));
+      applyData(path, val);
+    } catch(e) {}
+  }
+}
+
+function applyData(path, val) {
+  if (!val) return;
+  if (path.startsWith('prod/')) {
+    const k = path.slice(5);
+    prodData[k] = val;
+  } else if (path.startsWith('mold/')) {
+    const k = path.slice(5);
+    moldData[k] = val;
+  } else if (path.startsWith('cost/')) {
+    const k = path.slice(5);
+    costData[k] = val;
+  }
+}
+
+function localSave(type, key, data) {
+  const path = `${type}/${key}`;
+  const lsKey = 'xed_' + path.replace(/\//g,'_');
+  localStorage.setItem(lsKey, JSON.stringify(data));
+  if (window.fbSave) fbSave(path, data);
+}
+
+function localDelete(type, key) {
+  const path = `${type}/${key}`;
+  const lsKey = 'xed_' + path.replace(/\//g,'_');
+  localStorage.removeItem(lsKey);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   HELPERS
+// ═══════════════════════════════════════════════════════════════════════════════
+function fmtNum(n, dec=1) {
+  if (!n) return '0';
+  if (n >= 1e6) return (n/1e6).toFixed(dec) + 'M';
+  if (n >= 1e3) return (n/1e3).toFixed(dec) + 'K';
+  return Number(n).toLocaleString('vi-VN');
+}
+function makeKey(y,m,machine) { return `${y}-${String(m).padStart(2,'0')}-${machine}`; }
+function makeCostKey(y,m)     { return `${y}-${String(m).padStart(2,'0')}`; }
+function toast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  setTimeout(()=>el.classList.remove('show'), 2200);
+}
+function pct(a,b) { return b>0 ? ((a/b)*100).toFixed(1) : '0.0'; }
+
+function makeChart(id, type, data, opts={}) {
+  const ctx = document.getElementById(id);
+  if (!ctx) return null;
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  charts[id] = new Chart(ctx, { type, data,
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: { legend:{ labels:{ color:'#94a3b8', font:{size:11}, boxWidth:12 }}, tooltip:{ backgroundColor:'#141f35', borderColor:'rgba(255,255,255,0.1)', borderWidth:1, titleColor:'#e2e8f0', bodyColor:'#94a3b8' }},
+      scales: type==='bar' || type==='line' ? {
+        x:{ grid:{ color:'rgba(255,255,255,0.04)' }, ticks:{ color:'#64748b', font:{size:10} }},
+        y:{ grid:{ color:'rgba(255,255,255,0.04)' }, ticks:{ color:'#64748b', font:{size:10} }}
+      } : {},
+      ...opts
+    }
+  });
+  return charts[id];
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   LANGUAGE
+// ═══════════════════════════════════════════════════════════════════════════════
+function setLang(l) {
+  lang = l;
+  window.LANG = l;
+  document.getElementById('btn-vi').classList.toggle('active', l==='vi');
+  document.getElementById('btn-zh').classList.toggle('active', l==='zh');
+  document.getElementById('app-title').textContent = l==='vi'?'XƯỞNG ÉP ĐÙN NHÔM':'铝材挤压车间';
+  document.getElementById('app-sub').textContent = l==='vi'?'Hệ thống báo cáo sản xuất':'生产报表系统';
+  document.getElementById('ppt-label').textContent = l==='vi'?'Xuất PPT':'导出PPT';
+  // Translate all [data-vi]/[data-zh]
+  document.querySelectorAll(`[data-${l}]`).forEach(el => {
+    el.textContent = el.getAttribute(`data-${l}`);
+  });
+  buildSelects();
+  buildCostInputs();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   YEAR / TAB
+// ═══════════════════════════════════════════════════════════════════════════════
+function onYearChange() {
+  globalYear = parseInt(document.getElementById('global-year').value);
+  // Sync all year selects
+  ['p-year','m-year','c-year'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = globalYear;
+  });
+  loadProdFormData();
+  loadCostFormData();
+  renderAll();
+}
+
+function switchTab(idx) {
+  currentTab = idx;
+  document.querySelectorAll('.tab-section').forEach((s,i)=>{
+    s.classList.toggle('active', i===idx);
+  });
+  document.querySelectorAll('.tab-btn').forEach((b,i)=>{
+    b.classList.toggle('active', i===idx);
+  });
+  setTimeout(()=>renderAll(), 50);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   RENDER ALL
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderAll() {
+  renderOverview();
+  renderProduction();
+  renderMolds();
+  renderCost();
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   TAB 0 – OVERVIEW
+// ═══════════════════════════════════════════════════════════════════════════════
+function renderOverview() {
+  const t = T[lang];
+  const year = globalYear;
+  const month = parseInt(document.getElementById('ov-month')?.value||0);
+  const machine = document.getElementById('ov-machine')?.value||'all';
+
+  const months = month===0 ? Array.from({length:12},(_,i)=>i+1) : [month];
+  const machines = machine==='all' ? MACHINES : [machine];
+
+  // Prod aggregation
+  let totalIn=0, totalOut=0;
+  const outByMonth = Array(12).fill(0);
+  const outByMachine = {};
+  MACHINES.forEach(m=>outByMachine[m]=0);
+
+  months.forEach(mo => {
+    machines.forEach(ma => {
+      const k = makeKey(year,mo,ma);
+      const d = prodData[k];
+      if (!d) return;
+      totalIn += d.inputWeight||0;
+      totalOut += d.outputWeight||0;
+      outByMonth[mo-1] += d.outputWeight||0;
+      outByMachine[ma] += d.outputWeight||0;
+    });
+  });
+
+  // Mold aggregation
+  let moldTotal=0, moldOK=0, moldNG=0;
+  const moldOKByMonth = Array(12).fill(0);
+  const moldNGByMonth = Array(12).fill(0);
+  months.forEach(mo => {
+    machines.forEach(ma => {
+      const k = makeKey(year,mo,ma);
+      const arr = moldData[k]||[];
+      arr.forEach(item => {
+        moldTotal++;
+        if (item.extrudedPcs >= 30) { moldOK++; moldOKByMonth[mo-1]++; }
+        else { moldNG++; moldNGByMonth[mo-1]++; }
+      });
+    });
+  });
+
+  const yieldRate = totalIn>0 ? pct(totalOut,totalIn) : '0.0';
+  const ngRate = moldTotal>0 ? pct(moldNG,moldTotal) : '0.0';
+
+  document.getElementById('ov-total-out').textContent = fmtNum(totalOut,0);
+  document.getElementById('ov-yield').textContent = yieldRate+'%';
+  document.getElementById('ov-mold-ok').textContent = moldOK;
+  document.getElementById('ov-mold-total').textContent = moldTotal;
+  document.getElementById('ov-ng-rate').textContent = ngRate+'%';
+
+  // Monthly output chart
+  const mLabels = months.map(m=>t.months[m-1]);
+  const mValues = months.map(m=>outByMonth[m-1]);
+  makeChart('chart-ov-monthly','bar',{
+    labels:mLabels,
+    datasets:[{label:lang==='vi'?'Sản lượng (kg)':'产量(kg)',data:mValues,
+      backgroundColor:mValues.map((_,i)=>CHART_COLORS[i%CHART_COLORS.length]),borderRadius:4}]
+  });
+
+  // Yield by machine
+  const yLabels = machines;
+  const yValues = machines.map(ma => {
+    let tIn=0,tOut=0;
+    months.forEach(mo=>{
+      const d=prodData[makeKey(year,mo,ma)];
+      if(d){tIn+=d.inputWeight||0;tOut+=d.outputWeight||0;}
+    });
+    return tIn>0?parseFloat(pct(tOut,tIn)):0;
+  });
+  makeChart('chart-ov-yield','bar',{
+    labels:yLabels,
+    datasets:[{label:'%',data:yValues,backgroundColor:yLabels.map((_,i)=>CHART_COLORS[i]),borderRadius:4}]
+  },{scales:{y:{max:100}}});
+
+  // Machine output chart
+  const maValues = machines.map(m=>outByMachine[m]);
+  makeChart('chart-ov-machine','bar',{
+    labels:machines,
+    datasets:[{label:lang==='vi'?'Sản lượng (kg)':'产量(kg)',data:maValues,
+      backgroundColor:machines.map((_,i)=>CHART_COLORS[i]),borderRadius:4}]
+  });
+
+  // Mold OK/NG chart
+  makeChart('chart-ov-mold','bar',{
+    labels:months.map(m=>t.months[m-1]),
+    datasets:[
+      {label:t.moldOK,data:months.map(m=>moldOKByMonth[m-1]),backgroundColor:'#10b981',borderRadius:4},
+      {label:t.moldNG,data:months.map(m=>moldNGByMonth[m-1]),backgroundColor:'#ef4444',borderRadius:4},
+    ]
+  },{plugins:{legend:{display:true}}});
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   TAB 1 – PRODUCTION
+// ═══════════════════════════════════════════════════════════════════════════════
+function loadProdFormData() {
+  const y = parseInt(document.getElementById('p-year')?.value||globalYear);
+  const m = parseInt(document.getElementById('p-month')?.value||1);
+  const ma = document.getElementById('p-machine')?.value||'M01';
+  const k = makeKey(y,m,ma);
+  const d = prodData[k];
+  document.getElementById('p-input').value  = d?.inputWeight||'';
+  document.getElementById('p-output').value = d?.outputWeight||'';
+  document.getElementById('p-emp').value    = d?.totalEmployees||'';
+  calcProd();
+}
+
+function calcProd() {
+  const inp  = parseFloat(document.getElementById('p-input')?.value)||0;
+  const out  = parseFloat(document.getElementById('p-output')?.value)||0;
+  const emp  = parseFloat(document.getElementById('p-emp')?.value)||0;
+  const row  = document.getElementById('prod-calc');
+  if (inp>0 && out>0) {
+    row.style.display = 'flex';
+    document.getElementById('calc-yield').textContent = pct(out,inp)+'%';
+    document.getElementById('calc-avg').textContent = emp>0?(out/emp).toFixed(1)+' kg':'—';
+  } else {
+    row.style.display = 'none';
+  }
+}
+
+async function saveProd() {
+  const y  = parseInt(document.getElementById('p-year').value);
+  const m  = parseInt(document.getElementById('p-month').value);
+  const ma = document.getElementById('p-machine').value;
+  const inp = parseFloat(document.getElementById('p-input').value)||0;
+  const out = parseFloat(document.getElementById('p-output').value)||0;
+  const emp = parseInt(document.getElementById('p-emp').value)||0;
+  const k = makeKey(y,m,ma);
+  prodData[k] = {inputWeight:inp, outputWeight:out, totalEmployees:emp};
+  localSave('prod', k, prodData[k]);
+  const btn = document.getElementById('prod-save-btn');
+  btn.classList.add('success');
+  btn.querySelector('span').textContent = T[lang].saved.replace('✅ ','');
+  setTimeout(()=>{ btn.classList.remove('success'); btn.querySelector('span').textContent=lang==='vi'?'Lưu dữ liệu':'保存数据'; },1800);
+  toast(T[lang].saved);
+  renderAll();
+}
+
+function deleteProd(k) {
+  delete prodData[k];
+  localDelete('prod',k);
+  toast(T[lang].deleted);
+  renderAll();
+}
+
+function renderProduction() {
+  const t = T[lang];
+  const year = globalYear;
+  const month = parseInt(document.getElementById('pr-month')?.value||0);
+  const machine = document.getElementById('pr-machine')?.value||'all';
+  const months = month===0 ? Array.from({length:12},(_,i)=>i+1) : [month];
+  const machines = machine==='all' ? MACHINES : [machine];
+
+  // In/Out chart by machine
+  const inVals  = machines.map(ma=>{let s=0;months.forEach(mo=>{const d=prodData[makeKey(year,mo,ma)];if(d)s+=d.inputWeight||0;});return s;});
+  const outVals = machines.map(ma=>{let s=0;months.forEach(mo=>{const d=prodData[makeKey(year,mo,ma)];if(d)s+=d.outputWeight||0;});return s;});
+  makeChart('chart-pr-inout','bar',{
+    labels:machines,
+    datasets:[
+      {label:lang==='vi'?'Đầu vào':'投入',data:inVals,backgroundColor:'#3b82f6',borderRadius:4},
+      {label:lang==='vi'?'Đầu ra':'产出',data:outVals,backgroundColor:'#10b981',borderRadius:4},
+    ]
+  });
+
+  // Yield by machine
+  const yVals = machines.map(ma=>{
+    let tIn=0,tOut=0;
+    months.forEach(mo=>{const d=prodData[makeKey(year,mo,ma)];if(d){tIn+=d.inputWeight||0;tOut+=d.outputWeight||0;}});
+    return tIn>0?parseFloat(pct(tOut,tIn)):0;
+  });
+  makeChart('chart-pr-yield','bar',{
+    labels:machines,
+    datasets:[{label:'%',data:yVals,backgroundColor:machines.map((_,i)=>CHART_COLORS[i]),borderRadius:4}]
+  },{scales:{y:{max:100}}});
+
+  // Table
+  const tbody = document.getElementById('prod-tbody');
+  const rows = [];
+  months.forEach(mo => {
+    machines.forEach(ma => {
+      const k = makeKey(year,mo,ma);
+      const d = prodData[k];
+      if (!d || (!d.inputWeight && !d.outputWeight)) return;
+      const yr = d.inputWeight>0?pct(d.outputWeight,d.inputWeight)+'%':'—';
+      const avg = d.totalEmployees>0?(d.outputWeight/d.totalEmployees).toFixed(1)+' kg':'—';
+      rows.push(`<tr>
+        <td>${t.months[mo-1]}</td>
+        <td><span class="badge badge-mach">${ma}</span></td>
+        <td>${fmtNum(d.inputWeight,0)}</td>
+        <td>${fmtNum(d.outputWeight,0)}</td>
+        <td>${d.totalEmployees||0}</td>
+        <td style="color:${parseFloat(yr)>=95?'#10b981':'#f59e0b'}">${yr}</td>
+        <td>${avg}</td>
+        <td><button class="del-btn" onclick="deleteProd('${k}')">✕</button></td>
+      </tr>`);
+    });
+  });
+  tbody.innerHTML = rows.length ? rows.join('') : `<tr><td colspan="8" class="no-data">${t.noData}</td></tr>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   TAB 2 – MOLDS
+// ═══════════════════════════════════════════════════════════════════════════════
+function addMold() {
+  const y  = parseInt(document.getElementById('m-year').value);
+  const m  = parseInt(document.getElementById('m-month').value);
+  const ma = document.getElementById('m-machine').value;
+  const code = document.getElementById('m-code').value.trim();
+  const pcs  = parseInt(document.getElementById('m-pcs').value)||0;
+  if (!code || pcs<=0) { toast('⚠️ '+(lang==='vi'?'Nhập đầy đủ thông tin':'请填写完整信息')); return; }
+  const k = makeKey(y,m,ma);
+  if (!moldData[k]) moldData[k]=[];
+  moldData[k].push({moldCode:code, extrudedPcs:pcs});
+  localSave('mold', k, moldData[k]);
+  document.getElementById('m-code').value='';
+  document.getElementById('m-pcs').value='';
+  toast(T[lang].saved);
+  renderMolds();
+}
+
+function deleteMold(k, idx) {
+  moldData[k].splice(idx,1);
+  if (moldData[k].length===0) {
+    delete moldData[k];
+    localDelete('mold',k);
+  } else {
+    localSave('mold',k,moldData[k]);
+  }
+  toast(T[lang].deleted);
+  renderMolds();
+}
+
+function renderMolds() {
+  const t = T[lang];
+  const year = globalYear;
+  const month = parseInt(document.getElementById('mf-month')?.value||0);
+  const machine = document.getElementById('mf-machine')?.value||'all';
+  const months = month===0?Array.from({length:12},(_,i)=>i+1):[month];
+  const machines = machine==='all'?MACHINES:[machine];
+
+  // Quick view for current form selection
+  const qy = parseInt(document.getElementById('m-year')?.value||year);
+  const qm = parseInt(document.getElementById('m-month')?.value||1);
+  const qma = document.getElementById('m-machine')?.value||'M01';
+  const qk = makeKey(qy,qm,qma);
+  const qArr = moldData[qk]||[];
+  const qbody = document.getElementById('mold-quick-tbody');
+  qbody.innerHTML = qArr.length ? qArr.map((item,i)=>`<tr>
+    <td>${item.moldCode}</td>
+    <td>${item.extrudedPcs}</td>
+    <td><span class="badge ${item.extrudedPcs>=30?'badge-ok':'badge-ng'}">${item.extrudedPcs>=30?t.moldOK:t.moldNG}</span></td>
+    <td><button class="del-btn" onclick="deleteMold('${qk}',${i})">✕</button></td>
+  </tr>`).join('') : `<tr><td colspan="4" class="no-data" style="padding:12px">${t.noData}</td></tr>`;
+
+  // Global aggregation
+  let total=0,ok=0,ng=0;
+  const okByMonth=Array(12).fill(0), ngByMonth=Array(12).fill(0);
+  months.forEach(mo=>{
+    machines.forEach(ma=>{
+      const arr=moldData[makeKey(year,mo,ma)]||[];
+      arr.forEach(item=>{
+        total++;
+        if(item.extrudedPcs>=30){ok++;okByMonth[mo-1]++;}
+        else{ng++;ngByMonth[mo-1]++;}
+      });
+    });
+  });
+  document.getElementById('m-total').textContent=total;
+  document.getElementById('m-ok').textContent=ok;
+  document.getElementById('m-ng').textContent=ng;
+  document.getElementById('m-ngrate').textContent=total>0?pct(ng,total)+'%':'0%';
+
+  // Chart
+  makeChart('chart-mold-bar','bar',{
+    labels:months.map(m=>t.months[m-1]),
+    datasets:[
+      {label:t.moldOK,data:months.map(m=>okByMonth[m-1]),backgroundColor:'#10b981',borderRadius:4},
+      {label:t.moldNG,data:months.map(m=>ngByMonth[m-1]),backgroundColor:'#ef4444',borderRadius:4},
+    ]
+  });
+
+  // Full table
+  const tbody = document.getElementById('mold-tbody');
+  const rows=[];
+  months.forEach(mo=>{
+    machines.forEach(ma=>{
+      const k=makeKey(year,mo,ma);
+      (moldData[k]||[]).forEach((item,i)=>{
+        rows.push(`<tr>
+          <td>${t.months[mo-1]}</td>
+          <td><span class="badge badge-mach">${ma}</span></td>
+          <td>${item.moldCode}</td>
+          <td>${item.extrudedPcs}</td>
+          <td><span class="badge ${item.extrudedPcs>=30?'badge-ok':'badge-ng'}">${item.extrudedPcs>=30?t.moldOK:t.moldNG}</span></td>
+          <td><button class="del-btn" onclick="deleteMold('${k}',${i})">✕</button></td>
+        </tr>`);
+      });
+    });
+  });
+  tbody.innerHTML = rows.length?rows.join(''):`<tr><td colspan="6" class="no-data">${t.noData}</td></tr>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   TAB 3 – COST
+// ═══════════════════════════════════════════════════════════════════════════════
+function loadCostFormData() {
+  const y = parseInt(document.getElementById('c-year')?.value||globalYear);
+  const m = parseInt(document.getElementById('c-month')?.value||1);
+  const k = makeCostKey(y,m);
+  const d = costData[k]||{};
+  COST_KEYS.forEach(key=>{
+    const el=document.getElementById(`c-${key}`);
+    if(el) el.value=d[key]||'';
+  });
+  calcCostTotal();
+}
+
+function calcCostTotal() {
+  const y = parseInt(document.getElementById('c-year')?.value||globalYear);
+  const m = parseInt(document.getElementById('c-month')?.value||1);
+  const monthTotal = COST_KEYS.reduce((s,k)=>{
+    const el=document.getElementById(`c-${k}`);
+    return s+(parseFloat(el?.value)||0);
+  },0);
+  document.getElementById('cost-month-total').textContent = fmtNum(monthTotal,0)+' VNĐ';
+  // Year total
+  let yearTotal = 0;
+  for(let mo=1;mo<=12;mo++){
+    const d=costData[makeCostKey(y,mo)]||{};
+    yearTotal += COST_KEYS.reduce((s,k)=>s+(d[k]||0),0);
+  }
+  // Add current form values if not yet saved
+  yearTotal += monthTotal;
+  document.getElementById('cost-year-total').textContent = fmtNum(yearTotal,0)+' VNĐ';
+}
+
+async function saveCost() {
+  const y = parseInt(document.getElementById('c-year').value);
+  const m = parseInt(document.getElementById('c-month').value);
+  const k = makeCostKey(y,m);
+  const data = {};
+  COST_KEYS.forEach(key=>{
+    const el=document.getElementById(`c-${key}`);
+    data[key] = parseFloat(el?.value)||0;
+  });
+  costData[k] = data;
+  localSave('cost', k, data);
+  const btn = document.getElementById('cost-save-btn');
+  btn.classList.add('success');
+  setTimeout(()=>btn.classList.remove('success'),1800);
+  toast(T[lang].saved);
+  renderCost();
+}
+
+function renderCost() {
+  const t = T[lang];
+  const year = globalYear;
+  document.getElementById('cost-table-year').textContent = year;
+
+  const monthlyTotals = Array.from({length:12},(_,i)=>{
+    const d = costData[makeCostKey(year,i+1)]||{};
+    return COST_KEYS.reduce((s,k)=>s+(d[k]||0),0);
+  });
+
+  // Monthly chart
+  makeChart('chart-cost-monthly','bar',{
+    labels:t.months,
+    datasets:[{
+      label:lang==='vi'?'Chi phí (VNĐ)':'成本(VND)',
+      data:monthlyTotals,
+      backgroundColor:t.months.map((_,i)=>CHART_COLORS[i%CHART_COLORS.length]),
+      borderRadius:4
+    }]
+  });
+
+  // Pie chart by cost category
+  const catTotals = COST_KEYS.map(k=>{
+    let s=0;
+    for(let mo=1;mo<=12;mo++){const d=costData[makeCostKey(year,mo)]||{};s+=d[k]||0;}
+    return s;
+  });
+  makeChart('chart-cost-pie','doughnut',{
+    labels:COST_KEYS.map(k=>t.costLabels[k]),
+    datasets:[{data:catTotals,backgroundColor:COST_COLORS,borderWidth:0,hoverOffset:8}]
+  },{plugins:{legend:{position:'right',labels:{color:'#94a3b8',font:{size:10},padding:8,boxWidth:10}}}});
+
+  // Table header
+  document.getElementById('cost-thead').innerHTML =
+    `<th>${lang==='vi'?'Tháng':'月份'}</th>`+
+    COST_KEYS.map(k=>`<th>${t.costLabels[k]}</th>`).join('')+
+    `<th>${lang==='vi'?'Tổng':'合计'}</th>`;
+
+  // Table body
+  const tbody = document.getElementById('cost-tbody');
+  const rows = [];
+  for(let mo=1;mo<=12;mo++){
+    const k=makeCostKey(year,mo);
+    const d=costData[k];
+    if(!d) continue;
+    const total=COST_KEYS.reduce((s,key)=>s+(d[key]||0),0);
+    if(!total) continue;
+    rows.push(`<tr>
+      <td>${t.months[mo-1]}</td>
+      ${COST_KEYS.map(key=>`<td>${fmtNum(d[key]||0,0)}</td>`).join('')}
+      <td style="color:var(--amber);font-weight:700">${fmtNum(total,0)}</td>
+    </tr>`);
+  }
+  tbody.innerHTML = rows.length?rows.join(''):`<tr><td colspan="${COST_KEYS.length+2}" class="no-data">${t.noData}</td></tr>`;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   EXPORT PPT
+// ═══════════════════════════════════════════════════════════════════════════════
+async function exportPPT() {
+  const btn = document.getElementById('ppt-btn');
+  btn.disabled = true;
+  btn.querySelector('span:last-child').textContent = lang==='vi'?'Đang tạo...':'生成中...';
+
+  const t = T[lang];
+  const year = globalYear;
+  const months = Array.from({length:12},(_,i)=>i+1);
+
+  try {
+    const pptx = new PptxGenJS();
+    pptx.layout = 'LAYOUT_16x9';
+    pptx.title = t.pptTitle;
+
+    const NAVY='0e1628', AMBER='f59e0b', CYAN='06b6d4', WHITE='e2e8f0', SURFACE='141f35';
+
+    // ── SLIDE 1: Title ──
+    const s1 = pptx.addSlide();
+    s1.background = {color:NAVY};
+    s1.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:.4,h:5.625,fill:{color:AMBER}});
+    s1.addShape(pptx.shapes.RECTANGLE,{x:0,y:4.8,w:10,h:.825,fill:{color:SURFACE}});
+    s1.addText(lang==='vi'?'BÁO CÁO SẢN XUẤT':'生产报告',{x:.8,y:.8,w:9,h:1.2,fontSize:42,bold:true,color:WHITE,fontFace:'Calibri'});
+    s1.addText(lang==='vi'?'XƯỞNG ÉP ĐÙN NHÔM':'铝材挤压车间',{x:.8,y:2,w:8,h:.8,fontSize:26,color:AMBER,fontFace:'Calibri',bold:true});
+    s1.addText(`${lang==='vi'?'Năm':'年份'}: ${year}`,{x:.8,y:2.9,w:5,h:.6,fontSize:18,color:'94a3b8',fontFace:'Calibri'});
+    s1.addText(new Date().toLocaleDateString(lang==='vi'?'vi-VN':'zh-CN'),{x:6,y:4.9,w:3.5,h:.5,fontSize:12,color:'64748b',align:'right'});
+
+    // Helper to aggregate prod
+    const getProdData = (machine='all') => {
+      const macs = machine==='all'?MACHINES:[machine];
+      const byMonth = months.map(mo=>{
+        let s=0;macs.forEach(ma=>{const d=prodData[makeKey(year,mo,ma)];if(d)s+=d.outputWeight||0;});return s;
+      });
+      const byMachine = MACHINES.map(ma=>{
+        let s=0;months.forEach(mo=>{const d=prodData[makeKey(year,mo,ma)];if(d)s+=d.outputWeight||0;});return s;
+      });
+      return {byMonth,byMachine};
+    };
+
+    // ── SLIDE 2: Production by Month ──
+    const s2 = pptx.addSlide();
+    s2.background = {color:NAVY};
+    s2.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:10,h:.9,fill:{color:SURFACE}});
+    s2.addText(lang==='vi'?'SẢN LƯỢNG THEO THÁNG':'各月产量',{x:.4,y:.1,w:9,h:.7,fontSize:22,bold:true,color:AMBER,fontFace:'Calibri'});
+    const pd = getProdData();
+    s2.addChart(pptx.charts.BAR,[{name:lang==='vi'?'Sản lượng (kg)':'产量(kg)',labels:t.months,values:pd.byMonth}],{
+      x:.4,y:1,w:9.2,h:4.2,barDir:'col',
+      chartColors:['3b82f6','06b6d4','10b981','f59e0b','ef4444','8b5cf6','f97316','14b8a6','ec4899','84cc16','3b82f6','06b6d4'],
+      showValue:true,dataLabelPosition:'outEnd',dataLabelColor:'94a3b8',dataLabelFontSize:9,
+      chartArea:{fill:{color:NAVY}},
+      valAxisLabelColor:'64748b',catAxisLabelColor:'64748b',
+      valGridLine:{color:'1a2842',size:.5},catGridLine:{style:'none'},
+      showLegend:false,
+    });
+
+    // ── SLIDE 3: Production by Machine ──
+    const s3 = pptx.addSlide();
+    s3.background = {color:NAVY};
+    s3.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:10,h:.9,fill:{color:SURFACE}});
+    s3.addText(lang==='vi'?'SẢN LƯỢNG THEO MÁY ÉP':'各机器产量',{x:.4,y:.1,w:9,h:.7,fontSize:22,bold:true,color:CYAN,fontFace:'Calibri'});
+    s3.addChart(pptx.charts.BAR,[{name:lang==='vi'?'Sản lượng (kg)':'产量(kg)',labels:MACHINES,values:pd.byMachine}],{
+      x:.4,y:1,w:9.2,h:4.2,barDir:'col',
+      chartColors:MACHINES.map((_,i)=>CHART_COLORS[i].replace('#','')),
+      showValue:true,dataLabelPosition:'outEnd',dataLabelColor:'94a3b8',dataLabelFontSize:9,
+      chartArea:{fill:{color:NAVY}},
+      valAxisLabelColor:'64748b',catAxisLabelColor:'64748b',
+      valGridLine:{color:'1a2842',size:.5},catGridLine:{style:'none'},
+      showLegend:false,
+    });
+
+    // ── SLIDE 4: Yield Rate ──
+    const s4 = pptx.addSlide();
+    s4.background = {color:NAVY};
+    s4.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:10,h:.9,fill:{color:SURFACE}});
+    s4.addText(lang==='vi'?'TỶ LỆ THÀNH PHẨM THEO MÁY (%)':'各机器成品率(%)',{x:.4,y:.1,w:9,h:.7,fontSize:22,bold:true,color:'10b981',fontFace:'Calibri'});
+    const yieldVals = MACHINES.map(ma=>{
+      let tIn=0,tOut=0;
+      months.forEach(mo=>{const d=prodData[makeKey(year,mo,ma)];if(d){tIn+=d.inputWeight||0;tOut+=d.outputWeight||0;}});
+      return tIn>0?parseFloat(pct(tOut,tIn)):0;
+    });
+    s4.addChart(pptx.charts.BAR,[{name:'%',labels:MACHINES,values:yieldVals}],{
+      x:.4,y:1,w:9.2,h:4.2,barDir:'col',
+      chartColors:['10b981'],
+      showValue:true,dataLabelPosition:'outEnd',dataLabelColor:'94a3b8',dataLabelFontSize:9,
+      chartArea:{fill:{color:NAVY}},
+      valAxisLabelColor:'64748b',catAxisLabelColor:'64748b',
+      valGridLine:{color:'1a2842',size:.5},catGridLine:{style:'none'},
+      showLegend:false,
+    });
+
+    // ── SLIDE 5: Mold Status ──
+    const s5 = pptx.addSlide();
+    s5.background = {color:NAVY};
+    s5.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:10,h:.9,fill:{color:SURFACE}});
+    s5.addText(lang==='vi'?'TÌNH HÌNH KHUÔN OK / NG':'模具合格/不合格情况',{x:.4,y:.1,w:9,h:.7,fontSize:22,bold:true,color:'8b5cf6',fontFace:'Calibri'});
+    let mTotal=0,mOK=0,mNG=0;
+    const okByM=Array(12).fill(0),ngByM=Array(12).fill(0);
+    months.forEach((mo,i)=>{
+      MACHINES.forEach(ma=>{
+        (moldData[makeKey(year,mo,ma)]||[]).forEach(item=>{
+          mTotal++;
+          if(item.extrudedPcs>=30){mOK++;okByM[i]++;}else{mNG++;ngByM[i]++;}
+        });
+      });
+    });
+    s5.addChart(pptx.charts.BAR,[
+      {name:t.moldOK,labels:t.months,values:okByM},
+      {name:t.moldNG,labels:t.months,values:ngByM},
+    ],{
+      x:.4,y:1,w:6.5,h:4.2,barDir:'col',
+      chartColors:['10b981','ef4444'],
+      showLegend:true,legendPos:'t',
+      chartArea:{fill:{color:NAVY}},
+      valAxisLabelColor:'64748b',catAxisLabelColor:'64748b',
+      valGridLine:{color:'1a2842',size:.5},catGridLine:{style:'none'},
+    });
+    s5.addShape(pptx.shapes.RECTANGLE,{x:7.2,y:1,w:2.5,h:4.2,fill:{color:SURFACE}});
+    s5.addText([
+      {text:`${lang==='vi'?'Tổng khuôn':'总模具'}\n`,options:{fontSize:10,color:'64748b'}},
+      {text:`${mTotal}\n\n`,options:{fontSize:32,bold:true,color:WHITE}},
+      {text:`✅ ${t.moldOK}: ${mOK}\n`,options:{fontSize:13,color:'10b981'}},
+      {text:`❌ ${t.moldNG}: ${mNG}\n`,options:{fontSize:13,color:'ef4444'}},
+      {text:`\nNG: ${mTotal>0?pct(mNG,mTotal):'0'}%`,options:{fontSize:14,bold:true,color:AMBER}},
+    ],{x:7.25,y:1.1,w:2.4,h:4,valign:'middle'});
+
+    // ── SLIDE 6: Cost ──
+    const s6 = pptx.addSlide();
+    s6.background = {color:NAVY};
+    s6.addShape(pptx.shapes.RECTANGLE,{x:0,y:0,w:10,h:.9,fill:{color:SURFACE}});
+    s6.addText(lang==='vi'?'CHI PHÍ SẢN XUẤT THEO THÁNG':'各月生产成本',{x:.4,y:.1,w:9,h:.7,fontSize:22,bold:true,color:AMBER,fontFace:'Calibri'});
+    const costMonthVals = months.map(mo=>{
+      const d=costData[makeCostKey(year,mo)]||{};
+      return COST_KEYS.reduce((s,k)=>s+(d[k]||0),0);
+    });
+    s6.addChart(pptx.charts.BAR,[{name:lang==='vi'?'Chi phí':'成本',labels:t.months,values:costMonthVals}],{
+      x:.4,y:1,w:9.2,h:4.2,barDir:'col',
+      chartColors:[AMBER],
+      showValue:true,dataLabelPosition:'outEnd',dataLabelColor:'94a3b8',dataLabelFontSize:9,
+      chartArea:{fill:{color:NAVY}},
+      valAxisLabelColor:'64748b',catAxisLabelColor:'64748b',
+      valGridLine:{color:'1a2842',size:.5},catGridLine:{style:'none'},
+      showLegend:false,
+    });
+
+    await pptx.writeFile({fileName:`BaoCao_XuongEpDun_${year}.pptx`});
+    toast('✅ '+(lang==='vi'?'Đã xuất PPT thành công!':'PPT导出成功！'));
+  } catch(e) {
+    console.error(e);
+    toast('❌ '+(lang==='vi'?'Lỗi xuất PPT':'PPT导出失败'));
+  } finally {
+    btn.disabled = false;
+    btn.querySelector('span:last-child').textContent = lang==='vi'?'Xuất PPT':'导出PPT';
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+//   BOOT
+// ═══════════════════════════════════════════════════════════════════════════════
+// Sync year selects with global on change
+document.querySelectorAll('#p-year,#m-year,#c-year').forEach(el=>{
+  el.addEventListener('change',()=>{
+    document.getElementById('global-year').value = el.value;
+    globalYear = parseInt(el.value);
+    renderAll();
+  });
+});
+</script>
+</body>
+</html>
